@@ -6,3 +6,6 @@ The [method](https://doi.org/10.1063/1.2052648) is taken from: Johannes Kästner
 This repository contains the pure Pyton implementation and an example toml input file.
 
 The file umbr_int.f90 is my original implementation in fortran90 from 2007, which is left here for nostalgic reasons :)
+
+Usage:
+    python3 umbr_int.py inp.toml
