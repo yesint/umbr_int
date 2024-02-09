@@ -1,0 +1,28 @@
+Nbin = 100
+bin_min = 0.8
+bin_max = 3.2
+Temperature = 320
+first_time = 0
+
+out_file = "pmf_gpt.dat"
+kt_units = false
+zero_point = "right"
+
+windows = [
+{file = "sim-2/pullx.xvg", pos = 0.90, k = 1000},
+{file = "sim-1/pullx.xvg", pos = 1.05, k = 1000},
+{file = "sim0/pullx.xvg", pos = 1.20, k = 1000},
+{file = "sim1/pullx.xvg", pos = 1.35, k = 1000},
+{file = "sim2/pullx.xvg", pos = 1.50, k = 1000},
+{file = "sim3/pullx.xvg", pos = 1.65, k = 1000},
+{file = "sim4/pullx.xvg", pos = 1.80, k = 1000},
+{file = "sim5/pullx.xvg", pos = 1.95, k = 1000},
+{file = "sim6/pullx.xvg", pos = 2.10, k = 1000},
+{file = "sim7/pullx.xvg", pos = 2.25, k = 1000},
+{file = "sim8/pullx.xvg", pos = 2.40, k = 1000},
+{file = "sim9/pullx.xvg", pos = 2.55, k = 1000},
+{file = "sim10/pullx.xvg", pos = 2.70, k = 1000},
+{file = "sim11/pullx.xvg", pos = 2.85, k = 1000},
+{file = "sim12/pullx.xvg", pos = 3.00, k = 1000},
+{file = "sim13/pullx.xvg", pos = 3.15, k = 1000},
+]
