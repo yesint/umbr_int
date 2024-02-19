@@ -4,7 +4,7 @@ bin_max = 3.2
 Temperature = 320
 first_time = 0
 
-out_file = "pmf_gpt.dat"
+out_file = "pmf_umbr_int.dat"
 kt_units = false
 zero_point = "right"
 

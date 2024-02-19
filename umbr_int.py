@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import toml
+import sys
 
 class Window:
     def __init__(self, x0, k, filename, options):
@@ -19,7 +20,7 @@ class Window:
             for line in file:
                 if line.startswith(('#', '@')):
                     continue  # Skip comments and header lines
-                time, x = map(float, line.strip().split())
+                time, x = map(float, line.strip().split()[:2])
                 if time >= options.first_time:
                     data.append(x)  # Add x value if time >= first_time
         data = np.array(data)  # Convert list to NumPy array
@@ -98,5 +99,5 @@ def umb_int(param_file_path):
             f.write(f'{bin_center:10.5f} {Afinal[i]:10.5f}\n')
 
 # Replace 'gpt.toml' with the path to your TOML parameter file
-umb_int('gpt.toml')
+umb_int(sys.argv[1])
 
