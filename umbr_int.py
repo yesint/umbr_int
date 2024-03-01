@@ -2,6 +2,7 @@ import numpy as np
 import math
 import toml
 import sys
+from pathlib import Path
 
 class Window:
     def __init__(self, x0, k, filename, options):
@@ -13,6 +14,19 @@ class Window:
         self.num = 0
         self.read_data(options)
 
+    def get_interval(self,interval,Nintervals):
+        if Nintervals>0 and interval>=0:
+            interval_sz = len(self.data)/Nintervals
+            b = int(interval_sz*interval)
+            e = int(interval_sz*(interval+1))
+            self.mean = np.mean(self.data[b:e])
+            self.std = np.std(self.data[b:e])
+            self.num = len(self.data[b:e])
+        else:
+            self.mean = np.mean(self.data)
+            self.std = np.std(self.data)
+            self.num = len(self.data)
+
     def read_data(self, options):
         print(f'Reading data file {self.filename} starting time: {options.first_time}...')
         data = []  # List to store filtered data
@@ -23,23 +37,36 @@ class Window:
                 time, x = map(float, line.strip().split()[:2])
                 if time >= options.first_time:
                     data.append(x)  # Add x value if time >= first_time
-        data = np.array(data)  # Convert list to NumPy array
-        self.mean = np.mean(data)
-        self.std = np.std(data)
-        self.num = len(data)
-        print(f'{self.num} values read after filtering')
+        self.data = np.array(data)  # Convert list to NumPy array and store
+        print(f'{len(data)} values read after filtering')
+
 
 class Options:
     def __init__(self, config):
         self.Nbin = config['Nbin']
-        self.bin_min = config['bin_min']
-        self.bin_max = config['bin_max']
+
+        # Compute min and max        
+        minval = 1.0e6
+        maxval = -1.0e6
+        for w in config['windows']:
+            if w["pos"] > maxval:
+                maxval = w["pos"]
+            if w["pos"] < minval:
+                minval = w["pos"]
+                
+        self.bin_min = minval
+        self.bin_max = maxval
+        
         self.Nwin = len(config['windows'])
         self.Temperature = config['Temperature']
         self.first_time = config['first_time']
+        self.Nintervals = config['Nintervals']
         self.out_file = config['out_file']
         self.kt_units = config['kt_units']
         self.zero_point = config['zero_point']
+        
+        self.bin_sz = (self.bin_max - self.bin_min) / self.Nbin
+
 
 def read_parameters(config):
     options = Options(config)
@@ -48,37 +75,49 @@ def read_parameters(config):
         windows.append(Window(window_config['pos'], window_config['k'], window_config['file'], options))
     return options, windows
 
+
 def Pb(w, x, mean, std, sqrt_two_pi):
     return 1 / (std * sqrt_two_pi) * np.exp(-0.5 * ((x - mean) / std)**2)
 
-def umb_int(param_file_path):
-    with open(param_file_path, 'r') as file:
-        config = toml.load(file)
+
+def umb_int_init(param_file_path):
+    with open(param_file_path, 'r') as f:
+        config = toml.load(f)
         
     options,windows = read_parameters(config)
+    return options,windows
+    
+
+def compute_interval(options,windows,interval):
+    if interval>=0:
+        print(f'Computing PMF for interval {interval}...')
+    else:
+        print(f'Computing PMF for whole duration...')
     
     sqrt_two_pi = math.sqrt(math.tau)
     kb = 0.0083144621  # Boltzmann constant in kJ/(mol*K)
-    kbT = kb * options.Temperature
-    bin_sz = (options.bin_max - options.bin_min) / options.Nbin
+    kbT = kb * options.Temperature    
 
     dAu = np.zeros((options.Nwin, options.Nbin))
     dAfinal = np.zeros(options.Nbin)
     Afinal = np.zeros(options.Nbin)
 
     for i, window in enumerate(windows):
+        # Get averages for given interval
+        window.get_interval(interval,options.Nintervals)
+        # Compute dAu
         for j in range(options.Nbin):
-            x = options.bin_min + bin_sz * (j + 0.5)
+            x = options.bin_min + options.bin_sz * (j + 0.5)
             dAu[i, j] = kbT * ((x - window.mean) / (window.std**2)) - window.k * (x - window.x0)
 
     for j in range(options.Nbin):
-        x = options.bin_min + bin_sz * (j + 0.5)
+        x = options.bin_min + options.bin_sz * (j + 0.5)
         weights = np.array([window.num * Pb(i, x, window.mean, window.std, sqrt_two_pi) for i, window in enumerate(windows)])
         dAfinal[j] = np.sum(weights * dAu[:, j]) / np.sum(weights)
 
     Afinal[0] = 0
     for j in range(1, options.Nbin):
-        Afinal[j] = Afinal[j-1] + bin_sz * 0.5 * (dAfinal[j-1] + dAfinal[j])
+        Afinal[j] = Afinal[j-1] + options.bin_sz * 0.5 * (dAfinal[j-1] + dAfinal[j])
 
     # Set zero as asked
     if options.zero_point == 'min':
@@ -91,13 +130,43 @@ def umb_int(param_file_path):
     # Convert to kT if asked
     if options.kt_units:
         Afinal /= kbT
+   
+    return Afinal
 
-    # Writing output with an explicit loop
-    with open(options.out_file, 'w') as f:
+
+def write_pmf(outfile,pmf,options,errors):
+    with open(outfile, 'w') as f:
         for i in range(options.Nbin):
-            bin_center = options.bin_min + bin_sz * (i + 0.5)
-            f.write(f'{bin_center:10.5f} {Afinal[i]:10.5f}\n')
+            bin_center = options.bin_min + options.bin_sz * (i + 0.5)
+            if len(errors) == 0:
+                f.write(f'{bin_center:10.5f} {pmf[i]:10.5f}\n')
+            else:
+                f.write(f'{bin_center:10.5f} {pmf[i]:10.5f} {errors[i]:10.5f}\n')
 
-# Replace 'gpt.toml' with the path to your TOML parameter file
-umb_int(sys.argv[1])
+
+####################
+# Run
+####################
+
+options,windows = umb_int_init(sys.argv[1])
+
+if options.Nintervals>1:
+    pmfs = np.zeros((options.Nbin, options.Nintervals))
+    for interval in range(options.Nintervals):
+        pmfs[:,interval] = compute_interval(options,windows,interval)
+        # Writing output
+        fname = Path(options.out_file).stem
+        ext = Path(options.out_file).suffix
+        outfile = f'{fname}_{interval}{ext}'
+        write_pmf(outfile,pmfs[:,interval],options,errors=[])
+    
+    # Compute errors in each point
+    errs = np.zeros(options.Nbin)
+    for i in range(options.Nbin):    
+        errs[i] = np.std(pmfs[i,:])
+    
+# Compute whole    
+whole_pmf = compute_interval(options,windows,-1)
+# Writing output
+write_pmf(options.out_file,whole_pmf,options,errs)
 
