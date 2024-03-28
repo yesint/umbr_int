@@ -4,6 +4,8 @@ import toml
 import sys
 from pathlib import Path
 
+sqrt_two_pi = math.sqrt(math.tau)
+
 class Window:
     def __init__(self, x0, k, filename, options):
         self.x0 = x0
@@ -64,6 +66,7 @@ class Options:
         self.out_file = config['out_file']
         self.kt_units = config['kt_units']
         self.zero_point = config['zero_point']
+        self.cylindrical = config['cylindrical']
         
         self.bin_sz = (self.bin_max - self.bin_min) / self.Nbin
 
@@ -76,7 +79,7 @@ def read_parameters(config):
     return options, windows
 
 
-def Pb(w, x, mean, std, sqrt_two_pi):
+def Pb(x, mean, std):
     return 1 / (std * sqrt_two_pi) * np.exp(-0.5 * ((x - mean) / std)**2)
 
 
@@ -94,7 +97,7 @@ def compute_interval(options,windows,interval):
     else:
         print(f'Computing PMF for whole duration...')
     
-    sqrt_two_pi = math.sqrt(math.tau)
+    
     kb = 0.0083144621  # Boltzmann constant in kJ/(mol*K)
     kbT = kb * options.Temperature    
 
@@ -112,7 +115,13 @@ def compute_interval(options,windows,interval):
 
     for j in range(options.Nbin):
         x = options.bin_min + options.bin_sz * (j + 0.5)
-        weights = np.array([window.num * Pb(i, x, window.mean, window.std, sqrt_two_pi) for i, window in enumerate(windows)])
+        if options.cylindrical:
+            weights = np.zeros((len(windows),))
+            for i, window in enumerate(windows):
+                factor = 1.0/window.x0 if window.x0>0 else 1.0                
+                weights[i] = window.num * factor * Pb(x, window.mean, window.std)                
+        else:
+            weights = np.array([window.num * Pb(x, window.mean, window.std) for i, window in enumerate(windows)])
         dAfinal[j] = np.sum(weights * dAu[:, j]) / np.sum(weights)
 
     Afinal[0] = 0
