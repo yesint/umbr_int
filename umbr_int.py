@@ -66,7 +66,6 @@ class Options:
         self.out_file = config['out_file']
         self.kt_units = config['kt_units']
         self.zero_point = config['zero_point']
-        self.cylindrical = config['cylindrical']
         
         self.bin_sz = (self.bin_max - self.bin_min) / self.Nbin
 
@@ -115,13 +114,7 @@ def compute_interval(options,windows,interval):
 
     for j in range(options.Nbin):
         x = options.bin_min + options.bin_sz * (j + 0.5)
-        if options.cylindrical:
-            weights = np.zeros((len(windows),))
-            for i, window in enumerate(windows):
-                factor = 1.0/window.x0 if window.x0>0 else 1.0                
-                weights[i] = window.num * factor * Pb(x, window.mean, window.std)                
-        else:
-            weights = np.array([window.num * Pb(x, window.mean, window.std) for i, window in enumerate(windows)])
+        weights = np.array([window.num * Pb(x, window.mean, window.std) for i, window in enumerate(windows)])
         dAfinal[j] = np.sum(weights * dAu[:, j]) / np.sum(weights)
 
     Afinal[0] = 0
