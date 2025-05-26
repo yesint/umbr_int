@@ -155,23 +155,33 @@ def write_pmf(outfile,pmf,options,errors):
 
 options,windows = umb_int_init(sys.argv[1])
 
+# Compute whole pmf
+whole_pmf = compute_interval(options,windows,-1)
+
 if options.Nintervals>1:
     pmfs = np.zeros((options.Nbin, options.Nintervals))
+    rmsd_pmfs = np.zeros((options.Nbin, options.Nintervals))
+    # compute pmfs across intervals
     for interval in range(options.Nintervals):
         pmfs[:,interval] = compute_interval(options,windows,interval)
+        
+        # RMSD align to the whole pmf
+        optimal_c = np.mean(whole_pmf - pmfs[:,interval])
+        rmsd_pmfs[:,interval] = pmfs[:,interval] + optimal_c
+        
         # Writing output
         fname = Path(options.out_file).stem
         ext = Path(options.out_file).suffix
         outfile = f'{fname}_{interval}{ext}'
-        write_pmf(outfile,pmfs[:,interval],options,errors=[])
+        # write_pmf(outfile,pmfs[:,interval],options,errors=[])
+        write_pmf(outfile,rmsd_pmfs[:,interval],options,errors=[])
     
     # Compute errors in each point
     errs = np.zeros(options.Nbin)
     for i in range(options.Nbin):    
-        errs[i] = np.std(pmfs[i,:])
+        # errs[i] = np.std(pmfs[i,:])
+        errs[i] = np.std(rmsd_pmfs[i,:])
     
-# Compute whole    
-whole_pmf = compute_interval(options,windows,-1)
 # Writing output
 write_pmf(options.out_file,whole_pmf,options,errs)
 
