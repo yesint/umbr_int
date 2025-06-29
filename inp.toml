@@ -7,6 +7,7 @@ kt_units = false
 zero_point = "right"
 
 Nintervals = 5
+intervals_type = "common_time"
 
 windows = [
 {file = "sim-2/pullx.xvg", pos = 0.90, k = 1000},
