@@ -6,7 +6,7 @@ from pathlib import Path
 
 SQRT_TWO_PI = math.sqrt(math.tau)
 KB = 0.0083144621  # Boltzmann constant in kJ/(mol*K)
-INTERVALS_TYPES = ['window_time','common_time']
+INTERVAL_TYPES = ['window_time','common_time']
 ZERO_POINT_TYPES = ['left','right','min']
 
 "Single umbrella window"
@@ -72,8 +72,8 @@ class Config:
         intervals_type = toml.get('intervals_type','window_time')
 
         # Sanity check
-        if intervals_type not in INTERVALS_TYPES:
-            raise Exception(f'Intervals type `{intervals_type}` is not recognized. Supported: {INTERVALS_TYPES}')
+        if intervals_type not in INTERVAL_TYPES:
+            raise Exception(f'Intervals type `{intervals_type}` is not recognized. Supported: {INTERVAL_TYPES}')
         
         if self.Nintervals>1:
             if intervals_type == 'common_time':
