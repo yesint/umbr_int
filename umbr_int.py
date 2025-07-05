@@ -56,6 +56,13 @@ class Config:
         for w in toml['windows']:
             self.windows.append(Window(w['pos'], w['k'], w['file'], self.first_time))
 
+        # Convert angular force constant if asked
+        if toml.get('k_rad2_to_deg2',False):
+            print('Convertin angular force constants: kJ mol^-1 rad^-2 --> kJ mol^-1 deg^-2')
+            for w in self.windows:
+                # Convert kJ mol^-1 rad^-2 --> kJ mol^-1 deg^-2
+                w.k *= 0.0003046174
+
         self.Nintervals = toml.get('Nintervals',1)
         intervals_type = toml.get('intervals_type','window_time')
         
