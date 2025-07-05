@@ -1,6 +1,6 @@
 Nbin = 100
 Temperature = 320
-first_time = 0
+begin = 100 # Global start time
 
 out_file = "pmf_umbr_int.dat"
 kt_units = false
@@ -11,7 +11,7 @@ intervals_type = "common_time"
 
 windows = [
 {file = "sim-2/pullx.xvg", pos = 0.90, k = 1000},
-{file = "sim-1/pullx.xvg", pos = 1.05, k = 1000},
+{file = "sim-1/pullx.xvg", pos = 1.05, k = 1000, begin = 500}, # Per-window start time
 {file = "sim0/pullx.xvg", pos = 1.20, k = 1000},
 {file = "sim1/pullx.xvg", pos = 1.35, k = 1000},
 {file = "sim2/pullx.xvg", pos = 1.50, k = 1000},
