@@ -9,9 +9,8 @@ KB = 0.0083144621  # Boltzmann constant in kJ/(mol*K)
 INTERVAL_TYPES = ['window_time','common_time']
 ZERO_POINT_TYPES = ['left','right','min']
 
-"Single umbrella window"
 class Window:
-    def __init__(self, pos, k, filename, begin):
+    def __init__(self, pos: float, k: float, filename: str, begin: float):
         self.pos = pos
         self.k = k
 
