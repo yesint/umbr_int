@@ -187,11 +187,12 @@ def write_pmf(outfile: str, pmf: np.ndarray, config: Config, errors: np.ndarray|
 # Run
 ####################
 if __name__ == "__main__":
-    print('====================================')
-    print(' Umbrella Integration unbiasing     ')
-    print(' (C) Semen Yesylevskyy, 2025        ')
-    print(' https://github.com/yesint/umbr_int ')
-    print('====================================')
+    print('╭───────────────────────────────────────╮')
+    print('│     Umbrella Integration unbiasing    │')
+    print('├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤')
+    print('│ (C) Semen Yesylevskyy, 2025           │')
+    print('│ https://github.com/yesint/umbr_int    │')
+    print('╰───────────────────────────────────────╯')
 
     inp_file = sys.argv[1]
     config = Config(inp_file)
