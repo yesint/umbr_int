@@ -46,6 +46,14 @@ class Window:
         self.mean = np.mean(span)
         self.std = np.std(span)
         self.num = len(span)
+
+    def cyl_n_mean_std(self, i: int|None):
+        span = self.intervals[i] if i!=None else self.data[:]    
+        x = span[span!=0]
+        w = 1.0/x
+        self.mean = np.average(x, weights=w)
+        self.std = math.sqrt(np.average((x-self.mean)**2, weights=w))
+        self.num = len(x)
     
 
 class Config:
@@ -55,6 +63,8 @@ class Config:
         print(f'There are {len(toml['windows'])} umbrella windows')
         
         self.begin = toml.get('begin',-1.0)
+
+        self.is_cyl = toml.get('cyl',False)
         
         self.windows = []
         for w in toml['windows']:
@@ -141,7 +151,10 @@ def compute_interval(config: Config, interval: int|None) -> np.ndarray:
 
     for w_ind, window in enumerate(config.windows):
         # Get averages for given interval
-        window.interval_mean_std(interval)
+        if config.is_cyl:
+            window.cyl_n_mean_std(interval)
+        else:
+            window.interval_mean_std(interval)
         
         # Compute dAu
         for j in range(config.Nbin):
