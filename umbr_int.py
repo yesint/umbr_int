@@ -83,8 +83,14 @@ class Config:
         # Sanity check
         if intervals_type not in INTERVAL_TYPES:
             raise Exception(f'Intervals type `{intervals_type}` is not recognized. Supported: {INTERVAL_TYPES}')
-        
-        if self.Nintervals>1:
+        if self.Nintervals < 1:
+            raise Exception(f'Nintervals must be >= 1, got {self.Nintervals}')
+
+        if self.Nintervals == 1:
+            # Single interval spanning each window's whole trajectory
+            for w in self.windows:
+                w.intervals = [w.data]
+        elif self.Nintervals>1:
             if intervals_type == 'common_time':
                 print('Defining intervals by common time of all windows')
                 # Find common time interval for all windows
