@@ -9,10 +9,26 @@ KB = 0.0083144621  # Boltzmann constant in kJ/(mol*K)
 INTERVAL_TYPES = ['window_time','common_time']
 ZERO_POINT_TYPES = ['left','right','min']
 
+
+def ang_diff(a, b, period):
+    """Signed minimum-image difference a-b.
+
+    If `period` is None, returns the plain a-b (non-periodic coordinate).
+    Otherwise wraps the difference into (-period/2, period/2]. Works on both
+    scalars and numpy arrays, so it serves the per-sample data math and the
+    scalar bin/window-centre math alike.
+    """
+    d = a - b
+    if period is not None:
+        d = d - period * np.round(d / period)
+    return d
+
+
 class Window:
     def __init__(self, pos: float, k: float, filename: str, begin: float):
         self.pos = pos
         self.k = k
+        self.period = None  # set by Config; None = non-periodic coordinate
 
         print(f'Reading file "{filename}"...')
         time = []
@@ -42,9 +58,13 @@ class Window:
 
 
     def interval_mean_std(self, i: int|None):
-        span = self.intervals[i] if i!=None else self.data[:]    
-        self.mean = np.mean(span)
-        self.std = np.std(span)
+        span = self.intervals[i] if i!=None else self.data[:]
+        # Unwrap around the window centre before averaging so seam-straddling
+        # windows (e.g. data near +180 and -180) get a sensible mean/std.
+        # With period=None this is exactly np.mean(span)/np.std(span).
+        d = ang_diff(span, self.pos, self.period)
+        self.mean = self.pos + np.mean(d)
+        self.std = np.std(d)
         self.num = len(span)
 
     def cyl_n_mean_std(self, i: int|None):
@@ -65,11 +85,24 @@ class Config:
         self.begin = toml.get('begin',-1.0)
 
         self.is_cyl = toml.get('cyl',False)
-        
+
+        # Periodic coordinate (e.g. a dihedral). `period` is in the SAME units as
+        # `pos` and the data column (so 360 when k_rad2_to_deg2 = true, i.e. degrees).
+        # Absent -> non-periodic, all behaviour identical to before.
+        self.period = toml.get('period', None)
+        if self.period is not None:
+            if self.period <= 0:
+                raise Exception(f'period must be > 0, got {self.period}')
+            if self.is_cyl:
+                raise Exception('`period` and `cyl` cannot be combined')
+            print(f'Periodic coordinate: period = {self.period}')
+
         self.windows = []
         for w in toml['windows']:
-            self.windows.append(Window(w['pos'], w['k'], w['file'], w.get('begin',self.begin)))
-        
+            win = Window(w['pos'], w['k'], w['file'], w.get('begin',self.begin))
+            win.period = self.period
+            self.windows.append(win)
+
         # Convert angular force constant if asked
         if toml.get('k_rad2_to_deg2',False):
             print('Convertin angular force constants: kJ mol^-1 rad^-2 --> kJ mol^-1 deg^-2')
@@ -119,10 +152,16 @@ class Config:
                     # This returns array views so no data is copied
                     w.intervals = np.array_split(w.data, self.Nintervals)
             
-        # Compute data min and max        
-        w_pos = [w.pos for w in self.windows]
-        self.bin_min = np.min(w_pos)
-        self.bin_max = np.max(w_pos)
+        # Bin range. For a periodic coordinate tile exactly one full period
+        # (default principal range [-period/2, +period/2], e.g. [-180,180]);
+        # otherwise span the window centres as before.
+        if self.period is not None:
+            self.bin_min = toml.get('period_min', -self.period / 2.0)
+            self.bin_max = self.bin_min + self.period
+        else:
+            w_pos = [w.pos for w in self.windows]
+            self.bin_min = np.min(w_pos)
+            self.bin_max = np.max(w_pos)
 
         self.Nwin = len(self.windows)
         self.Temperature = toml.get('Temperature',300.0)
@@ -139,8 +178,9 @@ class Config:
         self.bin_sz = (self.bin_max - self.bin_min) / self.Nbin
 
 
-def Pb(x: float, mean: float, std: float) -> float:
-    return 1.0 / (std * SQRT_TWO_PI) * np.exp(-0.5 * ((x - mean) / std)**2)
+def Pb(x: float, mean: float, std: float, period=None) -> float:
+    d = ang_diff(x, mean, period)
+    return 1.0 / (std * SQRT_TWO_PI) * np.exp(-0.5 * (d / std)**2)
 
 
 def compute_interval(config: Config, interval: int|None) -> np.ndarray:
@@ -162,19 +202,29 @@ def compute_interval(config: Config, interval: int|None) -> np.ndarray:
         else:
             window.interval_mean_std(interval)
         
-        # Compute dAu
+        # Compute dAu. Both deltas use minimum-image differences so a window
+        # near +180 contributes correctly to bins near -180, and -k*ang_diff
+        # matches GROMACS's wrapped dihedral-restraint force.
         for j in range(config.Nbin):
             x = config.bin_min + config.bin_sz * (j + 0.5)
-            dAu[w_ind, j] = kbT * ((x - window.mean) / (window.std**2)) - window.k * (x - window.pos)
+            dAu[w_ind, j] = ( kbT * (ang_diff(x, window.mean, config.period) / window.std**2)
+                              - window.k * ang_diff(x, window.pos, config.period) )
 
     for j in range(config.Nbin):
         x = config.bin_min + config.bin_sz * (j + 0.5)
-        weights = np.array([w.num * Pb(x, w.mean, w.std) for w in config.windows])
+        weights = np.array([w.num * Pb(x, w.mean, w.std, config.period) for w in config.windows])
         dAfinal[j] = np.sum(weights * dAu[:, j]) / np.sum(weights)
 
+    # Integrate the mean force. For a periodic coordinate the net circulation
+    # around the loop must vanish; subtract the mean force to distribute the
+    # residual drift uniformly so the PMF closes (A returns to itself).
+    if config.period is not None:
+        g = dAfinal - np.mean(dAfinal)
+    else:
+        g = dAfinal
     Afinal[0] = 0.0
     for j in range(1, config.Nbin):
-        Afinal[j] = Afinal[j-1] + config.bin_sz * 0.5 * (dAfinal[j-1] + dAfinal[j])
+        Afinal[j] = Afinal[j-1] + config.bin_sz * 0.5 * (g[j-1] + g[j])
 
     # Set zero as asked
     if config.zero_point == 'min':
